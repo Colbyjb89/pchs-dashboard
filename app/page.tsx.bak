@@ -1,0 +1,686 @@
+'use client';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import Navigation from '@/components/Navigation';
+import Ava from '@/components/Ava';
+import { METRIC_CONFIG, MetricKey } from '@/lib/types';
+
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
+
+interface KPICardData {
+  key: MetricKey;
+  label: string;
+  shortLabel: string;
+  unit: string;
+  description: string;
+  value: number;
+  athleteName: string;
+  date: string;
+  accentColor: string;
+}
+
+const KPI_CARDS: { key: MetricKey; color: string }[] = [
+  { key: 'playerLoad',        color: '#1a6bff' },
+  { key: 'playerLoadPerMin',  color: '#00e676' },
+  { key: 'truckStick',        color: '#ff6d00' },
+  { key: 'maxVelocity',       color: '#7c4dff' },
+  { key: 'totalDistance',     color: '#00bcd4' },
+  { key: 'maxAccel',          color: '#ff1744' },
+];
+
+function KPICard({
+  data, isActive, onClick
+}: {
+  data: KPICardData;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  const [showTip, setShowTip] = useState(false);
+
+  return (
+    <div
+      className={`kpi-card ${isActive ? 'active' : ''}`}
+      onClick={onClick}
+      style={{ borderTopColor: isActive ? data.accentColor : 'transparent', borderTopWidth: 2 }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+        <div style={{
+          fontFamily: 'var(--font-display)',
+          fontWeight: 800,
+          fontSize: 11,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: 'var(--muted)',
+        }}>{data.shortLabel}</div>
+        <button
+          onClick={e => { e.stopPropagation(); setShowTip(v => !v); }}
+          style={{
+            width: 16, height: 16,
+            borderRadius: '50%',
+            background: 'var(--dim)',
+            border: 'none',
+            color: 'var(--muted)',
+            fontSize: 9,
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >?</button>
+      </div>
+
+      {showTip && (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            background: '#1e2d42',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            padding: '10px 12px',
+            marginBottom: 10,
+            fontSize: 11,
+            color: 'var(--muted)',
+            lineHeight: 1.5,
+            animation: 'fadeIn 0.15s ease',
+          }}
+        >
+          <strong style={{ color: 'var(--text)', display: 'block', marginBottom: 4 }}>{data.label}</strong>
+          {data.description}
+        </div>
+      )}
+
+      <div style={{
+        fontFamily: 'var(--font-display)',
+        fontWeight: 900,
+        fontSize: 34,
+        color: data.accentColor,
+        lineHeight: 1,
+        marginBottom: 4,
+      }}>
+        {data.value > 0 ? data.value.toFixed(1) : '—'}
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginLeft: 4 }}>
+          {data.unit}
+        </span>
+      </div>
+
+      <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+        <span style={{ color: 'var(--text)', fontWeight: 500 }}>{data.athleteName}</span>
+        {data.date && <span> · {data.date}</span>}
+      </div>
+
+      <div style={{
+        marginTop: 8,
+        fontSize: 10,
+        color: data.accentColor,
+        fontFamily: 'var(--font-display)',
+        fontWeight: 700,
+        letterSpacing: '0.04em',
+        opacity: 0.7,
+      }}>ALL-TIME MAX →</div>
+    </div>
+  );
+}
+
+// ─── Leaderboard Panel ────────────────────────────────────────────────────────
+
+function LeaderboardPanel({
+  metricKey, athletes, sessions, onWeekClick
+}: {
+  metricKey: MetricKey;
+  athletes: AthleteRow[];
+  sessions: SessionRow[];
+  onWeekClick: (weekStart: string) => void;
+}) {
+  const config = METRIC_CONFIG[metricKey];
+
+  return (
+    <div style={{
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 12,
+      overflow: 'hidden',
+      animation: 'fadeIn 0.25s ease',
+      marginTop: 16,
+    }}>
+      <div style={{
+        padding: '14px 18px',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+      }}>
+        <div>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 14 }}>
+            {config.label} — Leaderboard
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+            All-time maximums by athlete
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+        {/* Weekly chart */}
+        <div style={{ padding: '16px', borderRight: '1px solid var(--border)' }}>
+          <div style={{
+            fontFamily: 'var(--font-display)',
+            fontWeight: 700,
+            fontSize: 11,
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            color: 'var(--muted)',
+            marginBottom: 12,
+          }}>Weekly Trend — Click to Drill In</div>
+          <WeeklyChart sessions={sessions} metricKey={metricKey} onWeekClick={onWeekClick} />
+        </div>
+
+        {/* Leaderboard */}
+        <div style={{ padding: '16px' }}>
+          <div style={{
+            fontFamily: 'var(--font-display)',
+            fontWeight: 700,
+            fontSize: 11,
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            color: 'var(--muted)',
+            marginBottom: 12,
+          }}>Top Athletes</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {athletes.slice(0, 10).map((a, i) => (
+              <div key={a.id} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 10px',
+                background: i === 0 ? 'rgba(26,107,255,0.1)' : 'var(--card)',
+                borderRadius: 8,
+                cursor: 'pointer',
+                border: '1px solid var(--border)',
+              }}>
+                <div style={{
+                  width: 22, height: 22, borderRadius: '50%',
+                  background: i === 0 ? 'var(--accent)' : 'var(--dim)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: 'var(--font-display)',
+                  fontWeight: 800, fontSize: 11,
+                  color: 'white', flexShrink: 0,
+                }}>{i + 1}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 500, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {a.name}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{a.position}</div>
+                </div>
+                <div style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 600, fontSize: 13,
+                  color: i === 0 ? 'var(--accent)' : 'var(--text)',
+                }}>
+                  {a.value.toFixed(1)}<span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 2 }}>{config.unit}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Weekly Chart ─────────────────────────────────────────────────────────────
+
+interface SessionRow {
+  weekStart: string;
+  weekLabel: string;
+  avgValue: number;
+  maxValue: number;
+}
+
+function WeeklyChart({ sessions, metricKey, onWeekClick }: {
+  sessions: SessionRow[];
+  metricKey: MetricKey;
+  onWeekClick: (weekStart: string) => void;
+}) {
+  const max = Math.max(...sessions.map(s => s.maxValue), 1);
+
+  return (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', height: 120 }}>
+      {sessions.slice(-8).map(s => {
+        const h = (s.maxValue / max) * 100;
+        return (
+          <div
+            key={s.weekStart}
+            onClick={() => onWeekClick(s.weekStart)}
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 4,
+              cursor: 'pointer',
+            }}
+          >
+            <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
+              {s.maxValue.toFixed(0)}
+            </div>
+            <div
+              style={{
+                width: '100%',
+                height: `${Math.max(h, 4)}%`,
+                background: 'linear-gradient(180deg, var(--accent) 0%, rgba(26,107,255,0.4) 100%)',
+                borderRadius: '4px 4px 0 0',
+                transition: 'opacity 0.15s',
+                minHeight: 4,
+              }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+            />
+            <div style={{ fontSize: 9, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.2 }}>
+              {s.weekLabel}
+            </div>
+          </div>
+        );
+      })}
+      {sessions.length === 0 && (
+        <div style={{ color: 'var(--muted)', fontSize: 12, width: '100%', textAlign: 'center' }}>
+          No data yet
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Position Group Health Summary ───────────────────────────────────────────
+
+interface PositionGroupSummary {
+  group: string;
+  avgLoad: number;
+  seasonAvgLoad: number;
+  deviationPct: number;
+  playerCount: number;
+  belowThreshold: number;
+  acwrStatus: 'green' | 'yellow' | 'red';
+}
+
+function PositionGroupRow({ group }: { group: PositionGroupSummary }) {
+  const deviation = group.deviationPct;
+  const deviationColor = deviation >= 0 ? 'var(--green)' : deviation > -10 ? 'var(--yellow)' : 'var(--red)';
+  const statusColors = { green: 'var(--green)', yellow: 'var(--yellow)', red: 'var(--red)' };
+
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
+      padding: '10px 14px',
+      background: 'var(--card)',
+      borderRadius: 8,
+      border: '1px solid var(--border)',
+    }}>
+      <div style={{
+        width: 8, height: 8, borderRadius: '50%',
+        background: statusColors[group.acwrStatus],
+        flexShrink: 0,
+      }} />
+      <div style={{ flex: 1, fontWeight: 500, fontSize: 13 }}>{group.group}</div>
+      <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+        {group.playerCount} athletes
+        {group.belowThreshold > 0 && (
+          <span style={{ color: 'var(--orange)', marginLeft: 6 }}>· {group.belowThreshold} below threshold</span>
+        )}
+      </div>
+      <div style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: 12,
+        color: deviationColor,
+        fontWeight: 600,
+      }}>
+        {deviation >= 0 ? '+' : ''}{deviation.toFixed(1)}%
+      </div>
+    </div>
+  );
+}
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface AthleteRow {
+  id: string;
+  name: string;
+  position: string;
+  positionGroup: string;
+  value: number;
+}
+
+interface DashboardData {
+  athletes: AthleteRow[];
+  kpiMaxes: Record<MetricKey, { value: number; athleteName: string; date: string }>;
+  weeklySessions: Record<MetricKey, SessionRow[]>;
+  positionGroups: PositionGroupSummary[];
+  lastUpdated: string;
+  error?: string;
+  connectionStatus?: 'connected' | 'error' | 'no-data';
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
+export default function TeamOverview() {
+  const router = useRouter();
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeKPI, setActiveKPI] = useState<MetricKey | null>(null);
+  const [avaOpen, setAvaOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const loadData = useCallback(async () => {
+    try {
+      setIsRefreshing(true);
+      const res = await fetch('/api/athletes');
+      const result = await res.json();
+
+      if (result.success) {
+        // Data loaded — transform for display
+        const athletes = extractAthletes(result.data);
+        setData({
+          athletes,
+          kpiMaxes: buildEmptyMaxes(),
+          weeklySessions: buildEmptyWeekly(),
+          positionGroups: [],
+          lastUpdated: new Date().toLocaleTimeString(),
+          connectionStatus: 'connected',
+        });
+      } else {
+        setData({
+          athletes: [],
+          kpiMaxes: buildEmptyMaxes(),
+          weeklySessions: buildEmptyWeekly(),
+          positionGroups: [],
+          lastUpdated: new Date().toLocaleTimeString(),
+          error: result.error || 'Connection failed',
+          connectionStatus: 'error',
+        });
+      }
+    } catch (err) {
+      setData({
+        athletes: [],
+        kpiMaxes: buildEmptyMaxes(),
+        weeklySessions: buildEmptyWeekly(),
+        positionGroups: [],
+        lastUpdated: new Date().toLocaleTimeString(),
+        error: String(err),
+        connectionStatus: 'error',
+      });
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  function extractAthletes(raw: Record<string, unknown>): AthleteRow[] {
+    const list = (Array.isArray(raw) ? raw : raw?.athletes || raw?.data || raw?.results || []) as Record<string, unknown>[];
+    return list.map((a, i) => ({
+      id: String(a.id || i),
+      name: `${a.first_name || ''} ${a.last_name || ''}`.trim() || 'Unknown',
+      position: String(a.position || a.position_name || ''),
+      positionGroup: String(a.position_group || ''),
+      value: 0,
+    }));
+  }
+
+  function buildEmptyMaxes(): Record<MetricKey, { value: number; athleteName: string; date: string }> {
+    const result = {} as Record<MetricKey, { value: number; athleteName: string; date: string }>;
+    KPI_CARDS.forEach(({ key }) => {
+      result[key] = { value: 0, athleteName: '—', date: '' };
+    });
+    return result;
+  }
+
+  function buildEmptyWeekly(): Record<MetricKey, SessionRow[]> {
+    const result = {} as Record<MetricKey, SessionRow[]>;
+    KPI_CARDS.forEach(({ key }) => { result[key] = []; });
+    return result;
+  }
+
+  if (loading) {
+    return (
+      <div style={{ background: 'var(--bg)', minHeight: '100vh' }}>
+        <Navigation onAvaOpen={() => setAvaOpen(true)} onRefresh={loadData} isRefreshing={isRefreshing} />
+        <div style={{ padding: 24, maxWidth: 1400, margin: '0 auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="skeleton" style={{ height: 120, borderRadius: 12 }} />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: 'var(--bg)', minHeight: '100vh', paddingBottom: 80 }}>
+      <Navigation onAvaOpen={() => setAvaOpen(true)} onRefresh={loadData} isRefreshing={isRefreshing} />
+      <Ava isOpen={avaOpen} onClose={() => setAvaOpen(false)} />
+
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 16px' }}>
+
+        {/* ── Connection Status ─────────────────────────── */}
+        {data?.connectionStatus === 'error' && (
+          <div style={{
+            background: 'rgba(255,23,68,0.1)',
+            border: '1px solid rgba(255,23,68,0.3)',
+            borderRadius: 10,
+            padding: '12px 16px',
+            marginBottom: 20,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}>
+            <span style={{ color: 'var(--red)', fontSize: 16 }}>⚠</span>
+            <div>
+              <div style={{ fontWeight: 600, color: 'var(--red)', fontSize: 13 }}>API Connection Issue</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                {data.error} · Check your Vercel environment variables
+              </div>
+            </div>
+          </div>
+        )}
+
+        {data?.connectionStatus === 'connected' && (
+          <div style={{
+            background: 'rgba(0,230,118,0.08)',
+            border: '1px solid rgba(0,230,118,0.2)',
+            borderRadius: 10,
+            padding: '10px 16px',
+            marginBottom: 20,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--green)', animation: 'pulse-dot 2s infinite' }} />
+              <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600 }}>
+                Catapult API Connected · {data.athletes.length} athletes loaded
+              </span>
+            </div>
+            <span style={{ fontSize: 11, color: 'var(--muted)' }}>Updated {data.lastUpdated}</span>
+          </div>
+        )}
+
+        {/* ── Page Header ───────────────────────────────── */}
+        <div style={{ marginBottom: 24 }}>
+          <h1 style={{
+            fontFamily: 'var(--font-display)',
+            fontWeight: 900,
+            fontSize: 28,
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+          }}>Team Overview</h1>
+          <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
+            All-time maximums · Click any card to view leaderboard
+          </p>
+        </div>
+
+        {/* ── KPI Grid 3×2 ─────────────────────────────── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 14,
+          marginBottom: 8,
+        }}>
+          {KPI_CARDS.map(({ key, color }) => {
+            const config = METRIC_CONFIG[key];
+            const maxData = data?.kpiMaxes[key] || { value: 0, athleteName: '—', date: '' };
+            return (
+              <KPICard
+                key={key}
+                data={{
+                  key,
+                  label: config.label,
+                  shortLabel: config.shortLabel,
+                  unit: config.unit,
+                  description: config.description,
+                  value: maxData.value,
+                  athleteName: maxData.athleteName,
+                  date: maxData.date,
+                  accentColor: color,
+                }}
+                isActive={activeKPI === key}
+                onClick={() => setActiveKPI(activeKPI === key ? null : key)}
+              />
+            );
+          })}
+        </div>
+
+        {/* ── Leaderboard Panel ─────────────────────────── */}
+        {activeKPI && data && (
+          <LeaderboardPanel
+            metricKey={activeKPI}
+            athletes={data.athletes}
+            sessions={data.weeklySessions[activeKPI] || []}
+            onWeekClick={(weekStart) => {
+              router.push(`/trends?week=${weekStart}&metric=${activeKPI}`);
+            }}
+          />
+        )}
+
+        {/* ── Roster Quick View ─────────────────────────── */}
+        {data && data.athletes.length > 0 && (
+          <div style={{ marginTop: 28 }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 14,
+            }}>
+              <h2 style={{
+                fontFamily: 'var(--font-display)',
+                fontWeight: 800,
+                fontSize: 16,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+              }}>Roster — {data.athletes.length} Athletes</h2>
+              <a
+                href="/player"
+                style={{
+                  fontSize: 12,
+                  color: 'var(--accent)',
+                  textDecoration: 'none',
+                  fontFamily: 'var(--font-display)',
+                  fontWeight: 700,
+                  letterSpacing: '0.04em',
+                }}
+              >VIEW ALL →</a>
+            </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+              gap: 8,
+            }}>
+              {data.athletes.slice(0, 24).map(a => (
+                <a
+                  key={a.id}
+                  href={`/player?id=${a.id}`}
+                  style={{
+                    textDecoration: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '10px 12px',
+                    background: 'var(--card)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    transition: 'border-color 0.15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+                >
+                  <div style={{
+                    width: 28, height: 28,
+                    borderRadius: '50%',
+                    background: 'var(--dim)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: 'var(--font-display)',
+                    fontWeight: 800, fontSize: 12,
+                    color: 'var(--accent)',
+                    flexShrink: 0,
+                  }}>
+                    {a.name.charAt(0)}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 13, fontWeight: 500,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      color: 'var(--text)',
+                    }}>{a.name}</div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>{a.position || a.positionGroup || '—'}</div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Debug Info (temporary) ────────────────────── */}
+        {data?.connectionStatus === 'connected' && (
+          <div style={{
+            marginTop: 28,
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            padding: 16,
+          }}>
+            <div style={{
+              fontFamily: 'var(--font-display)',
+              fontWeight: 700, fontSize: 11,
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+              color: 'var(--muted)', marginBottom: 10,
+            }}>API Debug — Raw Roster Data</div>
+            <div style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              color: 'var(--muted)',
+              overflowX: 'auto',
+            }}>
+              <div style={{ marginBottom: 6, color: 'var(--green)' }}>
+                ✓ Connected · {data.athletes.length} athletes found
+              </div>
+              {data.athletes.slice(0, 10).map(a => (
+                <div key={a.id} style={{ padding: '2px 0' }}>
+                  <span style={{ color: 'var(--accent)' }}>{a.id}</span>
+                  <span style={{ color: 'var(--muted)' }}> · </span>
+                  <span style={{ color: 'var(--text)' }}>{a.name}</span>
+                  <span style={{ color: 'var(--muted)' }}> · {a.position || 'no position'}</span>
+                </div>
+              ))}
+              {data.athletes.length > 10 && (
+                <div style={{ color: 'var(--muted)', marginTop: 4 }}>
+                  ...and {data.athletes.length - 10} more
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

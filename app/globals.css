@@ -1,0 +1,305 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #080c14;
+  --surface: #0f1623;
+  --card: #141e2e;
+  --border: #1e2d42;
+  --accent: #1a6bff;
+  --accent-hover: #2979ff;
+  --green: #00e676;
+  --yellow: #ffd600;
+  --orange: #ff6d00;
+  --red: #ff1744;
+  --text: #e8edf5;
+  --muted: #5a7090;
+  --dim: #2a3f5f;
+  --font-display: 'Barlow Condensed', sans-serif;
+  --font-body: 'Barlow', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  height: 100%;
+}
+
+/* ── Scrollbars ─────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* ── Typography ─────────────────────────────────────────────── */
+.font-display { font-family: var(--font-display); }
+.font-body    { font-family: var(--font-body); }
+.font-mono    { font-family: var(--font-mono); }
+
+/* ── Cards & Surfaces ───────────────────────────────────────── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.card-hover {
+  transition: border-color 0.15s, background 0.15s;
+  cursor: pointer;
+}
+.card-hover:hover {
+  border-color: var(--accent);
+  background: #192538;
+}
+
+/* ── Status colors ──────────────────────────────────────────── */
+.status-green  { color: var(--green); }
+.status-yellow { color: var(--yellow); }
+.status-orange { color: var(--orange); }
+.status-red    { color: var(--red); }
+.status-blue   { color: var(--accent); }
+
+.bg-status-green  { background: rgba(0,230,118,0.12); border-color: rgba(0,230,118,0.3); }
+.bg-status-yellow { background: rgba(255,214,0,0.12); border-color: rgba(255,214,0,0.3); }
+.bg-status-orange { background: rgba(255,109,0,0.12); border-color: rgba(255,109,0,0.3); }
+.bg-status-red    { background: rgba(255,23,68,0.12);  border-color: rgba(255,23,68,0.3); }
+
+/* ── Tables ─────────────────────────────────────────────────── */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.data-table th {
+  background: var(--surface);
+  color: var(--muted);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 10px 12px;
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.data-table th:first-child {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  z-index: 20;
+  background: var(--surface);
+}
+.data-table td {
+  padding: 9px 12px;
+  text-align: right;
+  border-bottom: 1px solid rgba(30,45,66,0.5);
+  white-space: nowrap;
+  color: var(--text);
+}
+.data-table td:first-child {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  background: var(--card);
+  z-index: 5;
+  font-family: var(--font-body);
+  font-weight: 500;
+  color: var(--text);
+}
+.data-table tr:hover td { background: rgba(26,107,255,0.06); }
+.data-table tr:hover td:first-child { background: rgba(26,107,255,0.1); }
+
+/* ── Buttons ────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+}
+.btn-primary {
+  background: var(--accent);
+  color: white;
+}
+.btn-primary:hover { background: var(--accent-hover); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--dim); background: var(--surface); }
+
+.btn-active {
+  background: rgba(26,107,255,0.2);
+  color: var(--accent);
+  border: 1px solid rgba(26,107,255,0.4);
+}
+
+/* ── KPI Cards ──────────────────────────────────────────────── */
+.kpi-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.kpi-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.kpi-card:hover::before { opacity: 1; }
+.kpi-card.active { border-color: var(--accent); }
+.kpi-card.active::before { opacity: 1; }
+
+/* ── Badge ──────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+/* ── Tooltip ────────────────────────────────────────────────── */
+.tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--dim);
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  cursor: help;
+  flex-shrink: 0;
+}
+.tooltip:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e2d42;
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-family: var(--font-body);
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: normal;
+  width: 220px;
+  z-index: 100;
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+/* ── Animations ─────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideDown {
+  from { opacity: 0; max-height: 0; }
+  to   { opacity: 1; max-height: 2000px; }
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+.animate-fade-in { animation: fadeIn 0.3s ease forwards; }
+.animate-slide-down { animation: slideDown 0.3s ease forwards; }
+
+/* ── Navigation ─────────────────────────────────────────────── */
+.nav-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 12px;
+  color: var(--muted);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s;
+  text-decoration: none;
+  white-space: nowrap;
+  flex: 1;
+  border-top: 2px solid transparent;
+}
+.nav-tab:hover { color: var(--text); }
+.nav-tab.active {
+  color: var(--accent);
+  border-top-color: var(--accent);
+}
+
+/* ── Loading ────────────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, var(--card) 25%, var(--border) 50%, var(--card) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Injury Status ──────────────────────────────────────────── */
+.injury-full-go    { color: var(--green); }
+.injury-tolerated  { color: var(--yellow); }
+.injury-limited    { color: var(--orange); }
+.injury-out        { color: var(--red); }
+
+/* ── Mobile responsive ──────────────────────────────────────── */
+@media (max-width: 768px) {
+  .kpi-card { padding: 14px; }
+  .data-table th, .data-table td { padding: 8px 10px; font-size: 11px; }
+}
