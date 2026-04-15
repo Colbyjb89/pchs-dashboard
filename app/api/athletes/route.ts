@@ -1,6 +1,22 @@
 import { NextResponse } from 'next/server';
 
 const TOKEN = process.env.CATAPULT_TOKEN || '';
+const KV_URL   = process.env.injury_KV_REST_API_URL!;
+const KV_TOKEN = process.env.injury_KV_REST_API_TOKEN!;
+
+async function getExcludedIds(): Promise<Set<string>> {
+  try {
+    const res = await fetch(`${KV_URL}/get/excluded_athletes`, {
+      headers: { Authorization: `Bearer ${KV_TOKEN}` },
+      cache: 'no-store',
+    });
+    const data = await res.json();
+    if (!data.result) return new Set();
+    const parsed = JSON.parse(data.result);
+    const ids: string[] = typeof parsed === 'string' ? JSON.parse(parsed) : parsed;
+    return new Set(Array.isArray(ids) ? ids : []);
+  } catch { return new Set(); }
+}
 
 // We'll try multiple possible base URLs for the Catapult Connect API
 const POSSIBLE_BASE_URLS = [
@@ -38,51 +54,45 @@ async function tryFetch(path: string) {
 
 export async function GET() {
   try {
-    // Try athletes endpoint
-    const result = await tryFetch('/api/v6/athletes/');
+    const excludedIds = await getExcludedIds();
 
-    if (result.success) {
-      const athletes = Array.isArray(result.data) ? result.data : [];
-      // Deduplicate by full name — keep the record with the most fields populated (likely the active one with data)
+    const applyExclusion = (athletes: Record<string, unknown>[]) => {
       const seen = new Map<string, Record<string, unknown>>();
       athletes.forEach((a: Record<string, unknown>) => {
         const name = (String(a.first_name || '') + ' ' + String(a.last_name || '')).trim().toLowerCase();
         if (!seen.has(name)) {
           seen.set(name, a);
         } else {
-          // Keep whichever has more non-null fields (more complete record = has data)
           const existing = seen.get(name)!;
           const existingScore = Object.values(existing).filter(v => v != null && v !== '').length;
           const newScore = Object.values(a).filter(v => v != null && v !== '').length;
           if (newScore > existingScore) seen.set(name, a);
         }
       });
+      return Array.from(seen.values()).filter(a => {
+        const id = String(a.id ?? a.athlete_id ?? '');
+        return !excludedIds.has(id);
+      });
+    };
+    // Try athletes endpoint
+    const result = await tryFetch('/api/v6/athletes/');
+
+    if (result.success) {
+      const athletes = Array.isArray(result.data) ? result.data : [];
       return NextResponse.json({
         success: true,
         baseUrl: result.baseUrl,
-        data: Array.from(seen.values()),
+        data: applyExclusion(athletes),
       });
     }
 
     const result2 = await tryFetch('/api/v6/athletes');
     if (result2.success) {
       const athletes2 = Array.isArray(result2.data) ? result2.data : [];
-      const seen2 = new Map<string, Record<string, unknown>>();
-      athletes2.forEach((a: Record<string, unknown>) => {
-        const name = (String(a.first_name || '') + ' ' + String(a.last_name || '')).trim().toLowerCase();
-        if (!seen2.has(name)) {
-          seen2.set(name, a);
-        } else {
-          const existing = seen2.get(name)!;
-          const existingScore = Object.values(existing).filter(v => v != null && v !== '').length;
-          const newScore = Object.values(a).filter(v => v != null && v !== '').length;
-          if (newScore > existingScore) seen2.set(name, a);
-        }
-      });
       return NextResponse.json({
         success: true,
         baseUrl: result2.baseUrl,
-        data: Array.from(seen2.values()),
+        data: applyExclusion(athletes2),
       });
     }
 

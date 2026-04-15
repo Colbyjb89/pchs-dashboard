@@ -4,6 +4,7 @@ import Navigation from '@/components/Navigation';
 import { METRIC_CONFIG, MetricKey } from '@/lib/types';
 import { InjuryStatus, InjuryRecord } from '@/lib/types';
 import { saveInjuryUpload, clearAllInjuryData, getCurrentInjuries, getLastUpdated, getInjuryHistory } from '@/lib/injuries';
+import { uploadInjuries } from '@/lib/injuriesApi';
 
 const BRIEFING_ITEMS = [
   { key: 'week-load-trend', label: 'Week Load Trend vs. Last Week', description: 'Compares current week cumulative team Player Load to the same point last week.' },
@@ -54,15 +55,66 @@ export default function Settings() {
   const [injuryError, setInjuryError] = useState('');
   const [injuryUploading, setInjuryUploading] = useState(false);
   const injuryFileRef = useRef<HTMLInputElement>(null);
+  const [excludedIds, setExcludedIds] = useState<string[]>([]);
+  const [excludedNames, setExcludedNames] = useState<Record<string, string>>({});
+  const [excludedSaving, setExcludedSaving] = useState(false);
+  const [athleteSearch, setAthleteSearch] = useState('');
+  const [allAthletes, setAllAthletes] = useState<{ id: string; name: string; position: string }[]>([]);
+  const [profiles, setProfiles] = useState<Record<string, { height: string; weight: string; armLength: string; handWidth: string }>>({});
+  const [profileSaving, setProfileSaving] = useState<string | null>(null);
+  const [profileSearch, setProfileSearch] = useState('');
+  const [profileSyncing, setProfileSyncing] = useState(false);
+  const [profileSyncMsg, setProfileSyncMsg] = useState<string | null>(null);
 
-  // Load persisted injury data on mount
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('pchs_injury_records');
-      const storedDate = localStorage.getItem('pchs_injury_updated');
-      if (stored) setInjuryRecords(JSON.parse(stored));
-      if (storedDate) setInjuryLastUpdated(storedDate);
-    } catch {}
+    fetch('/api/excluded').then(r => r.json()).then(d => {
+      if (!d) return;
+      const raw = d.ids;
+      const ids = Array.isArray(raw) ? raw : (typeof raw === 'string' ? JSON.parse(raw) : []);
+      if (Array.isArray(ids)) setExcludedIds(ids);
+      if (d.names && typeof d.names === 'object') setExcludedNames(d.names);
+    }).catch(() => {});
+    fetch('/api/athletes').then(r => r.json()).then(d => {
+      if (d && d.success && Array.isArray(d.data)) {
+        const list = d.data.map((a: Record<string, unknown>) => {
+          const first = String(a.first_name ?? '').trim();
+          const last = String(a.last_name ?? '').trim();
+          const name = [first, last].filter(Boolean).join(' ') || String(a.name ?? '');
+          return { id: String(a.id ?? ''), name, position: String(a.position ?? '') };
+        }).filter((a: {id:string;name:string}) => a.id && a.name)
+          .sort((a: {name:string}, b: {name:string}) => a.name.localeCompare(b.name));
+        setAllAthletes(list);
+      }
+    }).catch(() => {});
+    fetch('/api/athlete-profiles').then(r => r.json()).then(d => {
+      if (d.profiles) setProfiles(d.profiles);
+    }).catch(() => {});
+  }, []);
+
+  async function toggleExclude(id: string) {
+    const next = excludedIds.includes(id) ? excludedIds.filter(x => x !== id) : [...excludedIds, id];
+    const ath = allAthletes.find(a => a.id === id);
+    const nextNames = { ...excludedNames };
+    if (next.includes(id) && ath) nextNames[id] = ath.name;
+    else delete nextNames[id];
+    setExcludedIds(next);
+    setExcludedNames(nextNames);
+    setExcludedSaving(true);
+    try { await fetch('/api/excluded', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: next, names: nextNames }) }); }
+    catch (e) { console.error(e); }
+    finally { setExcludedSaving(false); }
+  }
+
+  // Load injury data from API on mount
+  useEffect(() => {
+    import('@/lib/injuriesApi').then(({ fetchInjuries }) => {
+      fetchInjuries().then(data => {
+        if (data.records.length > 0) {
+          setInjuryRecords(data.records);
+          setInjuryLastUpdated(data.uploadLabel ?? '');
+        }
+      });
+    });
   }, []);
 
   function tryUnlock() {
@@ -158,18 +210,24 @@ export default function Settings() {
     setInjuryUploading(true);
     setInjuryError('');
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const text = evt.target?.result as string;
         const parsed = parseInjuryCSV(text);
         if (parsed.length === 0) {
           setInjuryError('No FB athletes found. Check that athletes have "FB" in the Sport column.');
         } else {
-          saveInjuryUpload(parsed);
-          const dateStr = new Date().toLocaleString();
-          setInjuryRecords(parsed);
-          setInjuryLastUpdated(dateStr);
-          setInjuryError('');
+          const result = await uploadInjuries(parsed);
+          if (result.success) {
+            const { invalidateCache } = await import('@/lib/injuriesApi');
+            invalidateCache();
+            const dateStr = new Date().toLocaleString();
+            setInjuryRecords(parsed);
+            setInjuryLastUpdated(dateStr);
+            setInjuryError('');
+          } else {
+            setInjuryError(`Upload failed: ${result.error ?? 'Unknown error'}`);
+          }
         }
       } catch (err) { setInjuryError(`Parse error: ${err}`); }
       finally { setInjuryUploading(false); if (injuryFileRef.current) injuryFileRef.current.value = ''; }
@@ -179,6 +237,7 @@ export default function Settings() {
 
   function clearInjuryData() {
     clearAllInjuryData();
+    fetch('/api/injuries', { method: 'DELETE' }).catch(() => {});
     setInjuryRecords([]);
     setInjuryLastUpdated('');
   }
@@ -191,6 +250,8 @@ export default function Settings() {
     { key: 'season',     label: 'Season' },
     { key: 'roster',     label: 'Roster' },
     { key: 'injury',     label: 'Injury Report' },
+    { key: 'excluded',   label: 'Excluded Athletes' },
+    { key: 'profiles',   label: 'Athlete Profiles' },
   ];
 
   return (
@@ -418,9 +479,6 @@ export default function Settings() {
                   <div>
                     <span style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 22, color: '#06d6a0' }}>{injuryRecords.length}</span>
                     <span style={{ fontSize: 13, color: 'var(--muted)', marginLeft: 8 }}>FB athletes loaded · {injuryLastUpdated}</span>
-                    <div style={{ fontSize: 11, color: 'var(--dim)', marginTop: 2 }}>
-                      {getInjuryHistory().length} total records in history
-                    </div>
                   </div>
                   <button onClick={clearInjuryData} style={{ background: 'rgba(255,23,68,0.1)', border: '1px solid rgba(255,23,68,0.3)', borderRadius: 6, padding: '6px 14px', color: 'var(--red)', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-display)' }}>
                     Clear Data
@@ -462,6 +520,172 @@ export default function Settings() {
                 </div>
               </>
             )}
+          </div>
+        )}
+        {activeTab === 'excluded' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <SectionHeader>Excluded Athletes</SectionHeader>
+            <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
+              Excluded athletes are hidden from all pages, leaderboards, and data across the dashboard. Their Catapult data is not deleted — re-include at any time.
+            </div>
+            {excludedIds.length > 0 && (
+              <div style={{ background: 'rgba(255,23,68,0.07)', border: '1px solid rgba(255,23,68,0.25)', borderRadius: 10, padding: '12px 16px' }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#ff3b3b', marginBottom: 10 }}>Currently Excluded ({excludedIds.length})</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {excludedIds.map(id => {
+                    const ath = allAthletes.find(a => a.id === id);
+                    const displayName = ath?.name ?? excludedNames[id] ?? (allAthletes.length === 0 ? 'Loading...' : id);
+                    const displayPos = ath?.position ?? '';
+                    return (
+                      <div key={id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,23,68,0.06)', border: '1px solid rgba(255,23,68,0.2)', borderRadius: 8, padding: '8px 12px' }}>
+                        <div>
+                          <span style={{ fontWeight: 700, fontSize: 13 }}>{displayName}</span>
+                          {displayPos && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 8 }}>{displayPos}</span>}
+                        </div>
+                        <button onClick={() => toggleExclude(id)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 12px', color: '#06d6a0', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-display)' }}>Re-include</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                <input type="text" placeholder="Search athletes..." value={athleteSearch} onChange={e => setAthleteSearch(e.target.value)}
+                  style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box' as const }} />
+              </div>
+              <div style={{ maxHeight: 400, overflowY: 'auto' as const }}>
+                {allAthletes.filter(a => !athleteSearch || a.name.toLowerCase().includes(athleteSearch.toLowerCase())).map((a, i) => {
+                  const isExcluded = excludedIds.includes(a.id);
+                  return (
+                    <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid var(--border)', background: isExcluded ? 'rgba(255,23,68,0.05)' : i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                      <div>
+                        <span style={{ fontWeight: 600, fontSize: 13, color: isExcluded ? '#ff3b3b' : 'var(--text)' }}>{a.name}</span>
+                        <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 8 }}>{a.position}</span>
+                        {isExcluded && <span style={{ fontSize: 10, color: '#ff3b3b', marginLeft: 8, fontWeight: 700 }}>EXCLUDED</span>}
+                      </div>
+                      <button onClick={() => toggleExclude(a.id)} style={{ background: isExcluded ? 'rgba(0,230,118,0.1)' : 'rgba(255,23,68,0.1)', border: `1px solid ${isExcluded ? 'rgba(0,230,118,0.3)' : 'rgba(255,23,68,0.3)'}`, borderRadius: 6, padding: '4px 14px', color: isExcluded ? '#06d6a0' : '#ff3b3b', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-display)' }}>
+                        {isExcluded ? 'Re-include' : 'Exclude'}
+                      </button>
+                    </div>
+                  );
+                })}
+                {allAthletes.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Loading athletes...</div>}
+              </div>
+            </div>
+            {excludedSaving && <div style={{ fontSize: 12, color: 'var(--accent)' }}>Saving...</div>}
+          </div>
+        )}
+
+        {/* ── Athlete Profiles Tab ─────────────────────── */}
+        {activeTab === 'profiles' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <SectionHeader>Athlete Profiles</SectionHeader>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
+                Height and weight sync from Catapult. Enter arm length and hand width manually.
+              </div>
+              <button
+                disabled={profileSyncing}
+                onClick={async () => {
+                  setProfileSyncing(true);
+                  setProfileSyncMsg(null);
+                  try {
+                    const res = await fetch('/api/athletes');
+                    const json = await res.json();
+                    const athletes: Record<string, unknown>[] = Array.isArray(json.data) ? json.data : [];
+                    let count = 0;
+                    // Load current profiles first to preserve arm/hand data
+                    const curRes = await fetch('/api/athlete-profiles');
+                    const curJson = await curRes.json();
+                    const curProfiles: Record<string, any> = curJson.profiles || {};
+                    for (const a of athletes) {
+                      const id = String(a.id ?? '');
+                      if (!id) continue;
+                      const htIn = Number(a.height ?? 0);
+                      const wt = Number(a.weight ?? 0);
+                      if (!htIn && !wt) continue;
+                      const feet = htIn > 0 ? Math.floor(htIn / 12) : 0;
+                      const inches = htIn > 0 ? htIn % 12 : 0;
+                      const htStr = htIn > 0 ? `${feet}'${inches}"` : '';
+                      const wtStr = wt > 0 ? `${wt} lbs` : '';
+                      const existing = curProfiles[id] || {};
+                      const updated = { ...existing, athleteId: id, height: htStr || existing.height || '', weight: wtStr || existing.weight || '' };
+                      await fetch('/api/athlete-profiles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ athleteId: id, profile: updated }) });
+                      count++;
+                    }
+                    // Refresh profiles state
+                    const fresh = await fetch('/api/athlete-profiles').then(r => r.json());
+                    if (fresh.profiles) setProfiles(fresh.profiles);
+                    setProfileSyncMsg(`Synced ${count} athletes from Catapult`);
+                  } catch (e) {
+                    setProfileSyncMsg('Sync failed — check console');
+                    console.error(e);
+                  } finally {
+                    setProfileSyncing(false);
+                  }
+                }}
+                style={{ background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '8px 18px', color: 'white', fontSize: 12, fontWeight: 700, cursor: profileSyncing ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-display)', opacity: profileSyncing ? 0.6 : 1, flexShrink: 0 }}>
+                {profileSyncing ? 'Syncing...' : '↓ Sync from Catapult'}
+              </button>
+            </div>
+            {profileSyncMsg && (
+              <div style={{ fontSize: 12, color: profileSyncMsg.includes('failed') ? 'var(--red)' : '#06d6a0', fontWeight: 600 }}>{profileSyncMsg}</div>
+            )}
+            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                <input type="text" placeholder="Search athletes..." value={profileSearch} onChange={e => setProfileSearch(e.target.value)}
+                  style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box' as const }} />
+              </div>
+              <div style={{ maxHeight: 600, overflowY: 'auto' as const }}>
+                {allAthletes.filter(a => !profileSearch || a.name.toLowerCase().includes(profileSearch.toLowerCase())).map((a, i) => {
+                  const p = profiles[a.id] || { height: '', weight: '', armLength: '', handWidth: '' };
+                  const isDirty = JSON.stringify(p) !== JSON.stringify(profiles[a.id] || { height: '', weight: '', armLength: '', handWidth: '' });
+                  const saving = profileSaving === a.id;
+                  const updateField = (field: string, val: string) => {
+                    setProfiles(prev => ({ ...prev, [a.id]: { ...prev[a.id], height: prev[a.id]?.height || '', weight: prev[a.id]?.weight || '', armLength: prev[a.id]?.armLength || '', handWidth: prev[a.id]?.handWidth || '', [field]: val } }));
+                  };
+                  const saveProfile = async () => {
+                    setProfileSaving(a.id);
+                    try {
+                      await fetch('/api/athlete-profiles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ athleteId: a.id, profile: profiles[a.id] || {} }) });
+                    } catch (e) { console.error(e); }
+                    finally { setProfileSaving(null); }
+                  };
+                  return (
+                    <div key={a.id} style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <div>
+                          <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>{a.name}</span>
+                          <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 8 }}>{a.position}</span>
+                        </div>
+                        <button onClick={saveProfile} disabled={saving}
+                          style={{ background: 'var(--accent)', border: 'none', borderRadius: 6, padding: '5px 14px', color: 'white', fontSize: 12, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-display)', opacity: saving ? 0.6 : 1 }}>
+                          {saving ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                        {[
+                          { field: 'height', label: 'Height', placeholder: '6\'2"' },
+                          { field: 'weight', label: 'Weight', placeholder: '215 lbs' },
+                          { field: 'armLength', label: 'Reach', placeholder: '33"' },
+                          { field: 'handWidth', label: 'Hand Width', placeholder: '10"' },
+                        ].map(({ field, label, placeholder }) => (
+                          <div key={field}>
+                            <div style={{ fontSize: 9, color: 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{label}</div>
+                            <input type="text" placeholder={placeholder}
+                              value={(profiles[a.id] as any)?.[field] || ''}
+                              onChange={e => updateField(field, e.target.value)}
+                              style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 8px', color: 'var(--text)', fontSize: 12, outline: 'none', boxSizing: 'border-box' as const }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+                {allAthletes.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Loading athletes...</div>}
+              </div>
+            </div>
           </div>
         )}
       </div>

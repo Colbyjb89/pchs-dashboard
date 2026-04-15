@@ -37,7 +37,20 @@ function tAvg(rows: AthleteRow[], key: MetricKey, side: 'a' | 'b'): number {
   return vals.length > 0 ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10 : 0;
 }
 
+
+function useIsMobile() {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+  return mobile;
+}
+
 export default function Comparison() {
+  const isMobile = useIsMobile();
   const router = useRouter();
   const [mode, setMode] = useState<Mode>('week');
   const [selectedGroup, setSelectedGroup] = useState('All');
@@ -264,25 +277,27 @@ function getIntensityColor(val: number, pb: number): string {
       <Navigation onAvaOpen={() => setAvaOpen(true)} onRefresh={runComparison} isRefreshing={isRefreshing || comparing} />
       <Ava isOpen={avaOpen} onClose={() => setAvaOpen(false)} />
 
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 16px' }}>
-        <div style={{ marginBottom: 18 }}>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 28, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Comparison</h1>
-          <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>Compare team averages across two periods</p>
-        </div>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: isMobile ? '10px 12px' : '20px 16px' }}>
+        {!isMobile && (
+          <div style={{ marginBottom: 18 }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 28, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Comparison</h1>
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>Compare team averages across two periods</p>
+          </div>
+        )}
 
         {/* ── Mode + Selectors ──────────────────────────── */}
-        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '16px 20px', marginBottom: 16 }}>
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: isMobile ? '12px 14px' : '16px 20px', marginBottom: isMobile ? 10 : 16 }}>
           {/* Mode toggle */}
-          <div style={{ display: 'flex', gap: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 16, width: 'fit-content' }}>
+          <div style={{ display: 'flex', gap: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 12, width: isMobile ? '100%' : 'fit-content' }}>
             {([['week', 'Week Range'], ['day', 'Day vs Day']] as [Mode, string][]).map(([m, label]) => (
-              <button key={m} onClick={() => setMode(m)} style={{ padding: '8px 20px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', background: mode === m ? 'var(--accent)' : 'transparent', color: mode === m ? 'white' : 'var(--muted)', transition: 'all 0.15s' }}>
+              <button key={m} onClick={() => setMode(m)} style={{ flex: isMobile ? 1 : undefined, padding: isMobile ? '10px 0' : '8px 20px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', background: mode === m ? 'var(--accent)' : 'transparent', color: mode === m ? 'white' : 'var(--muted)', transition: 'all 0.15s' }}>
                 {label}
               </button>
             ))}
           </div>
 
           {/* Selectors */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 12, alignItems: 'center' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr auto 1fr', gap: isMobile ? 10 : 12, alignItems: 'center' }}>
             {/* Period A */}
             <div>
               <div style={{ fontSize: 10, color: 'var(--accent)', fontFamily: 'var(--font-display)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
@@ -294,13 +309,13 @@ function getIntensityColor(val: number, pb: number): string {
                 </select>
               ) : (
                 <select value={sessionA} onChange={e => setSessionA(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
-                  {sessionOptions.map(s => <option key={s.id} value={s.id}>{s.name} · {s.date}</option>)}
+                  {sessionOptions.map(s => <option key={s.id} value={s.id}>{s.name}{isMobile ? '' : ` · ${s.date}`}</option>)}
                 </select>
               )}
             </div>
 
             {/* VS */}
-            <div style={{ textAlign: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 18, color: 'var(--muted)', paddingTop: 20 }}>VS</div>
+            {!isMobile && <div style={{ textAlign: 'center', fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 18, color: 'var(--muted)', paddingTop: 20 }}>VS</div>}
 
             {/* Period B */}
             <div>
@@ -313,7 +328,7 @@ function getIntensityColor(val: number, pb: number): string {
                 </select>
               ) : (
                 <select value={sessionB} onChange={e => setSessionB(e.target.value)} style={{ ...selectStyle, width: '100%' }}>
-                  {sessionOptions.map(s => <option key={s.id} value={s.id}>{s.name} · {s.date}</option>)}
+                  {sessionOptions.map(s => <option key={s.id} value={s.id}>{s.name}{isMobile ? '' : ` · ${s.date}`}</option>)}
                 </select>
               )}
             </div>
@@ -331,54 +346,85 @@ function getIntensityColor(val: number, pb: number): string {
         ) : (
           <>
             {/* ── KPI Cards ──────────────────────────────── */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
-              {KPI_KEYS.map(key => {
-                const meta = KPI_META[key] || { label: METRIC_CONFIG[key]?.label, unit: METRIC_CONFIG[key]?.unit, color: 'var(--accent)' };
-                const aVal = tAvg(filtered, key, 'a');
-                const bVal = tAvg(filtered, key, 'b');
-                const changePct = bVal > 0 && aVal > 0 ? ((aVal - bVal) / bVal) * 100 : null;
-                const up = changePct != null && changePct >= 0;
-
-                return (
-                  <div key={key} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderTop: `3px solid ${meta.color}`, borderRadius: 12, padding: '14px 16px' }}>
-                    <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 10 }}>{meta.label}</div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                      {/* A */}
-                      <div style={{ background: 'rgba(26,107,255,0.08)', border: '1px solid rgba(26,107,255,0.2)', borderRadius: 8, padding: '8px 10px' }}>
-                        <div style={{ fontSize: 9, color: 'var(--accent)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>A</div>
-                        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 20, color: meta.color }}>
-                          {aVal > 0 ? aVal.toFixed(1) : '—'}
-                          <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 2 }}>{meta.unit}</span>
+            {isMobile ? (
+              /* Mobile: KPI row format */
+              <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden', marginBottom: 12 }}>
+                {KPI_KEYS.map((key, idx) => {
+                  const meta = KPI_META[key] || { label: METRIC_CONFIG[key]?.label, unit: METRIC_CONFIG[key]?.unit, color: 'var(--accent)' };
+                  const aVal = tAvg(filtered, key, 'a');
+                  const bVal = tAvg(filtered, key, 'b');
+                  const changePct = bVal > 0 && aVal > 0 ? ((aVal - bVal) / bVal) * 100 : null;
+                  const up = changePct != null && changePct >= 0;
+                  return (
+                    <div key={key} style={{ position: 'relative', padding: '8px 12px 8px 14px', borderBottom: idx < KPI_KEYS.length - 1 ? '1px solid rgba(255,255,255,0.06)' : undefined }}>
+                      <div style={{ position: 'absolute', left: 0, top: 6, bottom: 6, width: 3, background: meta.color, borderRadius: '0 3px 3px 0', opacity: 0.7 }} />
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 3 }}>{meta.label}</div>
+                          <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
+                            <div>
+                              <div style={{ fontSize: 8, color: 'var(--accent)', fontFamily: 'var(--font-display)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 1, maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{labelA}</div>
+                              <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, color: meta.color }}>{aVal > 0 ? aVal.toFixed(1) : '—'}</span>
+                            </div>
+                            <span style={{ fontSize: 10, color: 'var(--dim)' }}>·</span>
+                            <div>
+                              <div style={{ fontSize: 8, color: 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 1, maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{labelB}</div>
+                              <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>{bVal > 0 ? bVal.toFixed(1) : '—'}</span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      {/* B */}
-                      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
-                        <div style={{ fontSize: 9, color: 'var(--text)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>B</div>
-                        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 20, color: 'var(--text)' }}>
-                          {bVal > 0 ? bVal.toFixed(1) : '—'}
-                          <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 2 }}>{meta.unit}</span>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          {changePct != null ? (
+                            <>
+                              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: up ? '#06d6a0' : '#ff8c42', lineHeight: 1 }}>
+                                {up ? '▲' : '▼'}{Math.abs(changePct).toFixed(1)}%
+                              </div>
+                              <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{meta.unit}</div>
+                            </>
+                          ) : <div style={{ fontSize: 13, color: 'var(--dim)' }}>—</div>}
                         </div>
                       </div>
                     </div>
-
-                    {/* Change */}
-                    {changePct != null && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 12, fontWeight: 800, color: up ? '#06d6a0' : '#ff8c42' }}>
-                          {up ? '▲' : '▼'} {Math.abs(changePct).toFixed(1)}%
-                        </span>
-                        <span style={{ fontSize: 10, color: 'var(--muted)' }}>A vs B</span>
+                  );
+                })}
+              </div>
+            ) : (
+              /* Desktop: original grid cards */
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+                {KPI_KEYS.map(key => {
+                  const meta = KPI_META[key] || { label: METRIC_CONFIG[key]?.label, unit: METRIC_CONFIG[key]?.unit, color: 'var(--accent)' };
+                  const aVal = tAvg(filtered, key, 'a');
+                  const bVal = tAvg(filtered, key, 'b');
+                  const changePct = bVal > 0 && aVal > 0 ? ((aVal - bVal) / bVal) * 100 : null;
+                  const up = changePct != null && changePct >= 0;
+                  return (
+                    <div key={key} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderTop: `3px solid ${meta.color}`, borderRadius: 12, padding: '14px 16px' }}>
+                      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 10 }}>{meta.label}</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                        <div style={{ background: 'rgba(26,107,255,0.08)', border: '1px solid rgba(26,107,255,0.2)', borderRadius: 8, padding: '8px 10px' }}>
+                          <div style={{ fontSize: 9, color: 'var(--accent)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{labelA}</div>
+                          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 20, color: meta.color }}>{aVal > 0 ? aVal.toFixed(1) : '—'}<span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 2 }}>{meta.unit}</span></div>
+                        </div>
+                        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
+                          <div style={{ fontSize: 9, color: 'var(--text)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{labelB}</div>
+                          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 20, color: 'var(--text)' }}>{bVal > 0 ? bVal.toFixed(1) : '—'}<span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 2 }}>{meta.unit}</span></div>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                      {changePct != null && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: up ? '#06d6a0' : '#ff8c42' }}>{up ? '▲' : '▼'} {Math.abs(changePct).toFixed(1)}%</span>
+                          <span style={{ fontSize: 10, color: 'var(--muted)' }}>A vs B</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* ── Athlete Table ───────────────────────────── */}
             <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ padding: isMobile ? '10px 14px' : '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                 <div>
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 13 }}>Athlete Breakdown</div>
                   <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>
@@ -386,55 +432,47 @@ function getIntensityColor(val: number, pb: number): string {
                     <span style={{ margin: '0 8px', color: 'var(--dim)' }}>vs</span>
                     <span style={{ color: 'var(--text)', fontWeight: 700 }}>B: {labelB}</span>
                   </div>
-                  {/* Intensity legend */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 9, color: 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>% of personal best</span>
-                    {[
-                      { label: '~Max ≥90%',    color: '#ff3b3b' },
-                      { label: 'High 75–89%',   color: '#ff8c42' },
-                      { label: 'Mod 60–74%',    color: '#ffd166' },
-                      { label: 'Avg 40–59%',    color: '#06d6a0' },
-                      { label: 'Low <40%',      color: '#4da6ff' },
-                    ].map(item => (
-                      <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: item.color }} />
-                        <span style={{ fontSize: 9, color: 'var(--muted)' }}>{item.label}</span>
-                      </div>
-                    ))}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ fontSize: 10, color: 'var(--text)', fontWeight: 800 }}>*</span>
-                      <span style={{ fontSize: 9, color: 'var(--muted)' }}>= Personal max</span>
+                  {!isMobile && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 9, color: 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>% of personal best</span>
+                      {[{ label: '~Max ≥90%', color: '#ff3b3b' }, { label: 'High 75–89%', color: '#ff8c42' }, { label: 'Mod 60–74%', color: '#ffd166' }, { label: 'Avg 40–59%', color: '#06d6a0' }, { label: 'Low <40%', color: '#4da6ff' }].map(item => (
+                        <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: item.color }} />
+                          <span style={{ fontSize: 9, color: 'var(--muted)' }}>{item.label}</span>
+                        </div>
+                      ))}
                     </div>
-                  </div>
+                  )}
                 </div>
                 <select value={selectedGroup} onChange={e => setSelectedGroup(e.target.value)} style={{ ...selectStyle, fontSize: 12 }}>
                   {POSITION_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
                 </select>
               </div>
 
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              {/* Same table for both mobile and desktop — sticky first col + header */}
+              <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: isMobile ? '60vh' : '75vh' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: isMobile ? 500 : 'auto' }}>
                   <thead>
                     <tr>
-                      <th style={{ ...thStyle, textAlign: 'left', position: 'sticky', left: 0, background: 'var(--surface)', zIndex: 2, minWidth: 150 }}>Athlete</th>
+                      <th style={{ ...thStyle, textAlign: 'left', position: 'sticky', top: 0, left: 0, background: 'var(--surface)', zIndex: 5, minWidth: isMobile ? 110 : 150 }}>Athlete</th>
                       {KPI_KEYS.map(key => {
                         const meta = KPI_META[key];
                         const isSort = sortMetric === key;
                         return (
                           <th key={`a-${key}`} colSpan={3} onClick={() => handleSort(key)}
-                            style={{ ...thStyle, textAlign: 'center', color: isSort ? 'var(--accent)' : 'var(--muted)', borderLeft: '2px solid var(--border)' }}>
-                            {meta?.label ?? METRIC_CONFIG[key]?.shortLabel} {isSort ? (sortDir === 'desc' ? '↓' : '↑') : ''}
+                            style={{ ...thStyle, textAlign: 'center', color: isSort ? 'var(--accent)' : 'var(--muted)', borderLeft: '2px solid var(--border)', position: 'sticky', top: 0, zIndex: 3 }}>
+                            {isMobile ? (METRIC_CONFIG[key]?.shortLabel ?? meta?.label) : (meta?.label ?? METRIC_CONFIG[key]?.shortLabel)} {isSort ? (sortDir === 'desc' ? '↓' : '↑') : ''}
                           </th>
                         );
                       })}
                     </tr>
                     <tr style={{ background: 'rgba(0,0,0,0.2)' }}>
-                      <th style={{ ...thStyle, textAlign: 'left', position: 'sticky', left: 0, background: 'var(--surface)', zIndex: 2 }} />
+                      <th style={{ ...thStyle, textAlign: 'left', position: 'sticky', top: thStyle.padding ? 34 : 34, left: 0, background: 'var(--surface)', zIndex: 5 }} />
                       {KPI_KEYS.map(key => (
                         <>
-                          <th key={`ha-${key}`} style={{ ...thStyle, color: 'var(--accent)', borderLeft: '2px solid var(--border)', fontSize: 9 }}>A</th>
-                          <th key={`hb-${key}`} style={{ ...thStyle, fontSize: 9, color: 'var(--text)' }}>B</th>
-                          <th key={`hd-${key}`} style={{ ...thStyle, fontSize: 9 }}>Δ%</th>
+                          <th key={`ha-${key}`} style={{ ...thStyle, color: 'var(--accent)', borderLeft: '2px solid var(--border)', fontSize: 8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 60, position: 'sticky', top: 34, zIndex: 3 }}>{labelA}</th>
+                          <th key={`hb-${key}`} style={{ ...thStyle, fontSize: 8, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 60, position: 'sticky', top: 34, zIndex: 3 }}>{labelB}</th>
+                          <th key={`hd-${key}`} style={{ ...thStyle, fontSize: 9, position: 'sticky', top: 34, zIndex: 3 }}>Δ%</th>
                         </>
                       ))}
                     </tr>
@@ -468,21 +506,17 @@ function getIntensityColor(val: number, pb: number): string {
                           const bIsMax = !excludeFromMax && pb > 0 && bVal > 0 && bVal >= pb;
                           return (
                             <>
-                              <td key={`a-${key}`}
-                                onClick={() => router.push(`/player?id=${row.id}`)}
+                              <td key={`a-${key}`} onClick={() => router.push(`/player?id=${row.id}`)}
                                 style={{ padding: '9px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: pb > 0 ? aColor : 'var(--accent)', whiteSpace: 'nowrap', borderLeft: '2px solid var(--border)', cursor: 'pointer' }}
                                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(26,107,255,0.08)')}
                                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                {aVal > 0 ? aVal.toFixed(1) : '—'}
-                                {aIsMax && <span style={{ color: 'var(--text)', fontWeight: 900, fontSize: 11, marginLeft: 2 }}>*</span>}
+                                {aVal > 0 ? aVal.toFixed(1) : '—'}{aIsMax && <span style={{ color: 'var(--text)', fontWeight: 900, fontSize: 11, marginLeft: 2 }}>*</span>}
                               </td>
-                              <td key={`b-${key}`}
-                                onClick={() => router.push(`/player?id=${row.id}`)}
+                              <td key={`b-${key}`} onClick={() => router.push(`/player?id=${row.id}`)}
                                 style={{ padding: '9px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12, color: pb > 0 ? bColor : 'var(--text)', whiteSpace: 'nowrap', cursor: 'pointer' }}
                                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(26,107,255,0.08)')}
                                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                {bVal > 0 ? bVal.toFixed(1) : '—'}
-                                {bIsMax && <span style={{ color: 'var(--text)', fontWeight: 900, fontSize: 11, marginLeft: 2 }}>*</span>}
+                                {bVal > 0 ? bVal.toFixed(1) : '—'}{bIsMax && <span style={{ color: 'var(--text)', fontWeight: 900, fontSize: 11, marginLeft: 2 }}>*</span>}
                               </td>
                               <td key={`d-${key}`} style={{ padding: '9px 10px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: delta == null ? 'var(--dim)' : up ? '#06d6a0' : '#ff8c42', whiteSpace: 'nowrap' }}>
                                 {delta != null ? (up ? '▲' : '▼') + Math.abs(delta).toFixed(0) + '%' : '—'}

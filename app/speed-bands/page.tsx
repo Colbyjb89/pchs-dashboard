@@ -120,6 +120,7 @@ function Band7Bar({ efforts }: { efforts: number }) {
 }
 
 function SpeedBandsContent() {
+  const isMobile = useIsMobile();
   const [rows, setRows] = useState<SpeedBandRow[]>([]);
   const [selectedGroup, setSelectedGroup] = useState('All');
   const [availableWeeks, setAvailableWeeks] = useState<{ ws: string; label: string }[]>([]);
@@ -248,26 +249,53 @@ function SpeedBandsContent() {
       <Navigation onAvaOpen={() => setAvaOpen(true)} onRefresh={loadData} isRefreshing={isRefreshing} />
       <Ava isOpen={avaOpen} onClose={() => setAvaOpen(false)} />
 
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 16px' }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: isMobile ? '12px 12px' : '20px 16px' }}>
 
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
-          <div>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 28, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Bands</h1>
-            <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>Weekly speed exposure · VB4 High Speed Yards · VB7 Max Velocity Efforts</p>
+        {isMobile ? (
+          <div style={{ marginBottom: 12 }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 20, letterSpacing: '0.04em', textTransform: 'uppercase', lineHeight: 1, marginBottom: 10 }}>Bands</h1>
+            {/* Mobile filter card */}
+            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Week</div>
+                <select value={selectedWeek} onChange={e => setSelectedWeek(e.target.value)}
+                  style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '9px 12px', color: 'var(--text)', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13 }}>
+                  {availableWeeks.map(w => <option key={w.ws} value={w.ws}>{w.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Position Group</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {POSITION_GROUPS.map(g => (
+                    <button key={g} onClick={() => setSelectedGroup(g)}
+                      style={{ padding: '6px 12px', borderRadius: 20, border: `1px solid ${selectedGroup === g ? 'var(--accent)' : 'var(--border)'}`, background: selectedGroup === g ? 'var(--accent)' : 'var(--surface)', color: selectedGroup === g ? 'white' : 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 11, cursor: 'pointer', transition: 'all 0.15s' }}>
+                      {g === 'All' ? 'All' : g.replace('Offensive Line', 'OL').replace('Defensive Line', 'DL').replace('Linebackers', 'LB').replace('Secondary', 'DB').replace('Special Teams', 'ST')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <select value={selectedWeek} onChange={e => setSelectedWeek(e.target.value)} style={selectStyle}>
-              {availableWeeks.map(w => <option key={w.ws} value={w.ws}>{w.label}</option>)}
-            </select>
-            <select value={selectedGroup} onChange={e => setSelectedGroup(e.target.value)} style={selectStyle}>
-              {POSITION_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
-            </select>
+        ) : (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+            <div>
+              <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 28, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Bands</h1>
+              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>Weekly speed exposure · VB4 High Speed Yards · VB7 Max Velocity Efforts</p>
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <select value={selectedWeek} onChange={e => setSelectedWeek(e.target.value)} style={selectStyle}>
+                {availableWeeks.map(w => <option key={w.ws} value={w.ws}>{w.label}</option>)}
+              </select>
+              <select value={selectedGroup} onChange={e => setSelectedGroup(e.target.value)} style={selectStyle}>
+                {POSITION_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Summary KPI cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(6, 1fr)', gap: 10, marginBottom: 16 }}>
           {[
             {
               label: 'VB4 On Track', value: vb4OnTrack, color: '#06d6a0', bg: 'rgba(6,214,160,0.1)', border: 'rgba(6,214,160,0.25)',
@@ -306,94 +334,125 @@ function SpeedBandsContent() {
 
         {/* Main table */}
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr>
-                  <th style={{ ...thStyle, minWidth: 160, position: 'sticky', left: 0, zIndex: 2 }}>Athlete</th>
-
-                  {/* VB4 section */}
-                  <th style={{ ...thStyle, borderLeft: '2px solid var(--border)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span style={{ color: '#4da6ff' }}>VB4</span>
-                      <span style={{ color: 'var(--dim)' }}>HSY</span>
-                      <Tooltip text={VB4_TOOLTIP} />
-                    </div>
-                  </th>
-                  <th style={{ ...thStyle, minWidth: 130 }}>Progress</th>
-                  <th style={{ ...thStyle }}>Target</th>
-                  <th style={{ ...thStyle }}>Status</th>
-
-                  {/* VB7 section */}
-                  <th style={{ ...thStyle, borderLeft: '2px solid var(--border)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          {isMobile ? (
+            /* Mobile: compact table — sticky name col, VB4 with target, VB7 as x/5 */
+            <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '70vh' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 360 }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...thStyle, position: 'sticky', top: 0, left: 0, zIndex: 5, minWidth: 120, textAlign: 'left' }}>Athlete</th>
+                    <th style={{ ...thStyle, position: 'sticky', top: 0, zIndex: 3, borderLeft: '2px solid var(--border)', textAlign: 'center' }}>
+                      <span style={{ color: '#4da6ff' }}>VB4</span> <span style={{ color: 'var(--dim)', fontSize: 9 }}>yds</span>
+                    </th>
+                    <th style={{ ...thStyle, position: 'sticky', top: 0, zIndex: 3, textAlign: 'center', fontSize: 9 }}>Target</th>
+                    <th style={{ ...thStyle, position: 'sticky', top: 0, zIndex: 3, borderLeft: '2px solid var(--border)', textAlign: 'center' }}>
                       <span style={{ color: '#7c4dff' }}>VB7</span>
-                      <span style={{ color: 'var(--dim)' }}>Efforts</span>
-                      <Tooltip text={VB7_TOOLTIP} />
-                    </div>
-                  </th>
-                  <th style={{ ...thStyle, minWidth: 110 }}>Progress</th>
-                  <th style={{ ...thStyle }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((row, i) => (
-                  <tr key={row.athleteId}
-                    style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(26,107,255,0.04)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)')}>
-
-                    {/* Athlete */}
-                    <td style={{ padding: '10px 14px', position: 'sticky', left: 0, background: 'var(--card)', zIndex: 1, whiteSpace: 'nowrap' }}>
-                      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        {row.athleteName}
-                        <InjuryFlag athleteId={row.athleteId} athleteName={row.athleteName} />
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>{row.position}</div>
-                    </td>
-
-                    {/* VB4 - yards */}
-                    <td style={{ padding: '10px 14px', fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: row.band4Status === 'on-track' ? '#06d6a0' : row.band4Status === 'over' ? '#ff3b3b' : '#4da6ff', borderLeft: '2px solid var(--border)', whiteSpace: 'nowrap' }}>
-                      {row.band4WeeklyYards > 0 ? row.band4WeeklyYards.toFixed(0) : '—'}
-                      <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400, marginLeft: 3 }}>yds</span>
-                    </td>
-
-                    {/* VB4 - progress bar */}
-                    <td style={{ padding: '10px 14px', minWidth: 130 }}>
-                      <ProgressBar value={row.band4WeeklyYards} floor={row.band4Floor} ceiling={row.band4Ceiling} />
-                    </td>
-
-                    {/* VB4 - target */}
-                    <td style={{ padding: '10px 14px', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
-                      {row.band4Floor > 0 ? `${row.band4Floor.toFixed(0)}–${row.band4Ceiling.toFixed(0)}` : '—'}
-                    </td>
-
-                    {/* VB4 - status */}
-                    <td style={{ padding: '10px 14px' }}>
-                      <StatusBadge status={row.band4Status} />
-                    </td>
-
-                    {/* VB7 - efforts count */}
-                    <td style={{ padding: '10px 14px', borderLeft: '2px solid var(--border)' }}>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 14, color: row.band7Status === 'on-track' ? '#06d6a0' : row.band7Status === 'over' ? '#ff3b3b' : '#4da6ff' }}>
-                        {row.band7WeeklyEfforts}
-                      </span>
-                    </td>
-
-                    {/* VB7 - bar */}
-                    <td style={{ padding: '10px 14px', minWidth: 110 }}>
-                      <Band7Bar efforts={row.band7WeeklyEfforts} />
-                    </td>
-
-                    {/* VB7 - status */}
-                    <td style={{ padding: '10px 14px' }}>
-                      <StatusBadge status={row.band7Status} />
-                    </td>
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filtered.map((row, i) => {
+                    const vb4Color = row.band4Status === 'on-track' ? '#06d6a0' : row.band4Status === 'over' ? '#ff3b3b' : '#4da6ff';
+                    const vb7Color = row.band7Status === 'on-track' ? '#06d6a0' : row.band7Status === 'over' ? '#ff3b3b' : '#4da6ff';
+                    return (
+                      <tr key={row.athleteId}
+                        style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                        <td style={{ padding: '9px 12px', position: 'sticky', left: 0, background: '#0f1923', zIndex: 1, whiteSpace: 'nowrap', boxShadow: '2px 0 4px rgba(0,0,0,0.3)' }}>
+                          <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            {row.athleteName}
+                            <InjuryFlag athleteId={row.athleteId} athleteName={row.athleteName} />
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--muted)' }}>{row.position}</div>
+                        </td>
+                        <td style={{ padding: '9px 10px', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: vb4Color, borderLeft: '2px solid var(--border)', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          {row.band4WeeklyYards > 0 ? row.band4WeeklyYards.toFixed(0) : '—'}
+                        </td>
+                        <td style={{ padding: '9px 8px', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--muted)', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          {row.band4Floor > 0 ? `${row.band4Floor.toFixed(0)}–${row.band4Ceiling.toFixed(0)}` : '—'}
+                        </td>
+                        <td style={{ padding: '9px 10px', borderLeft: '2px solid var(--border)', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 13, color: vb7Color }}>
+                            {row.band7WeeklyEfforts}
+                          </span>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>/5</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            /* Desktop: full table with progress bars */
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...thStyle, minWidth: 160, position: 'sticky', left: 0, zIndex: 2 }}>Athlete</th>
+                    <th style={{ ...thStyle, borderLeft: '2px solid var(--border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ color: '#4da6ff' }}>VB4</span>
+                        <span style={{ color: 'var(--dim)' }}>HSY</span>
+                        <Tooltip text={VB4_TOOLTIP} />
+                      </div>
+                    </th>
+                    <th style={{ ...thStyle, minWidth: 130 }}>Progress</th>
+                    <th style={{ ...thStyle }}>Target</th>
+                    <th style={{ ...thStyle }}>Status</th>
+                    <th style={{ ...thStyle, borderLeft: '2px solid var(--border)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <span style={{ color: '#7c4dff' }}>VB7</span>
+                        <span style={{ color: 'var(--dim)' }}>Efforts</span>
+                        <Tooltip text={VB7_TOOLTIP} />
+                      </div>
+                    </th>
+                    <th style={{ ...thStyle, minWidth: 110 }}>Progress</th>
+                    <th style={{ ...thStyle }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((row, i) => (
+                    <tr key={row.athleteId}
+                      style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(26,107,255,0.04)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)')}>
+                      <td style={{ padding: '10px 14px', position: 'sticky', left: 0, background: 'var(--card)', zIndex: 1, whiteSpace: 'nowrap' }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {row.athleteName}
+                          <InjuryFlag athleteId={row.athleteId} athleteName={row.athleteName} />
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>{row.position}</div>
+                      </td>
+                      <td style={{ padding: '10px 14px', fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: row.band4Status === 'on-track' ? '#06d6a0' : row.band4Status === 'over' ? '#ff3b3b' : '#4da6ff', borderLeft: '2px solid var(--border)', whiteSpace: 'nowrap' }}>
+                        {row.band4WeeklyYards > 0 ? row.band4WeeklyYards.toFixed(0) : '—'}
+                        <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400, marginLeft: 3 }}>yds</span>
+                      </td>
+                      <td style={{ padding: '10px 14px', minWidth: 130 }}>
+                        <ProgressBar value={row.band4WeeklyYards} floor={row.band4Floor} ceiling={row.band4Ceiling} />
+                      </td>
+                      <td style={{ padding: '10px 14px', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                        {row.band4Floor > 0 ? `${row.band4Floor.toFixed(0)}–${row.band4Ceiling.toFixed(0)}` : '—'}
+                      </td>
+                      <td style={{ padding: '10px 14px' }}>
+                        <StatusBadge status={row.band4Status} />
+                      </td>
+                      <td style={{ padding: '10px 14px', borderLeft: '2px solid var(--border)' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 14, color: row.band7Status === 'on-track' ? '#06d6a0' : row.band7Status === 'over' ? '#ff3b3b' : '#4da6ff' }}>
+                          {row.band7WeeklyEfforts}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 14px', minWidth: 110 }}>
+                        <Band7Bar efforts={row.band7WeeklyEfforts} />
+                      </td>
+                      <td style={{ padding: '10px 14px' }}>
+                        <StatusBadge status={row.band7Status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Legend footer */}
           <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
@@ -422,6 +481,18 @@ function SpeedBandsContent() {
       </div>
     </div>
   );
+}
+
+
+function useIsMobile() {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+  return mobile;
 }
 
 export default function SpeedBands() {

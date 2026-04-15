@@ -22,15 +22,13 @@ const TABLE_COLS: { key: MetricKey; label: string; unit: string; decimals: numbe
 
 // Position group cards — short labels + colors matching MHS
 const GROUP_CARDS: { group: string; positions: string[]; color: string }[] = [
-  { group: 'QB',  positions: ['QB'],                         color: '#ffd166' },
-  { group: 'RB',  positions: ['RB', 'HB', 'FB'],            color: '#06d6a0' },
-  { group: 'WR',  positions: ['WR', 'SB'],                  color: '#4da6ff' },
-  { group: 'TE',  positions: ['TE'],                        color: '#b388ff' },
-  { group: 'OL',  positions: ['OL','C','OG','OT','LT','RT','LG','RG'], color: '#ff8c42' },
-  { group: 'DL',  positions: ['DL','DE','DT','NT','NG'],    color: '#ff3b3b' },
-  { group: 'LB',  positions: ['LB','OLB','ILB','MLB','WILL','MIKE','SAM'], color: '#ff6d00' },
-  { group: 'DB',  positions: ['DB','CB','S','SS','FS','SAF'], color: '#e040fb' },
-  { group: 'K/P', positions: ['K','P','LS','KR','PR'],       color: '#90a4ae' },
+  { group: 'O Skill',     positions: ['QB', 'WR', 'RB', 'HB', 'FB', 'TE', 'SB'],                              color: '#06d6a0' },
+  { group: 'D Skill',     positions: ['S', 'SS', 'FS', 'SAF'],                                                  color: '#4da6ff' },
+  { group: 'Corners',     positions: ['CB', 'DB', 'NICKEL', 'DIME', 'DCB'],                                     color: '#b388ff' },
+  { group: 'Linebackers', positions: ['LB', 'OLB', 'ILB', 'MLB', 'WILL', 'MIKE', 'SAM'],                       color: '#ff6d00' },
+  { group: 'O Line',      positions: ['OL', 'C', 'OG', 'OT', 'LT', 'RT', 'LG', 'RG'],                         color: '#ff8c42' },
+  { group: 'D Line',      positions: ['DL', 'DE', 'DT', 'NT', 'NG'],                                            color: '#ff3b3b' },
+  { group: 'Kicker',      positions: ['K', 'P', 'LS', 'KR', 'PR'],                                              color: '#90a4ae' },
 ];
 
 function getPositionCard(pos: string): { group: string; color: string } {
@@ -62,13 +60,26 @@ interface AthleteRow {
 
 type ViewMode = 'alltime' | 'range' | 'day';
 
+
+function useIsMobile() {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+  return mobile;
+}
+
 export default function ByPosition() {
+  const isMobile = useIsMobile();
   const router = useRouter();
   const [athletes, setAthletes] = useState<AthleteRow[]>([]);
-  const [primaryMetric, setPrimaryMetric] = useState<MetricKey>('maxVelocity');
-  const [sortCol, setSortCol] = useState<MetricKey>('maxVelocity');
+  const [primaryMetric, setPrimaryMetric] = useState<MetricKey>('playerLoad');
+  const [sortCol, setSortCol] = useState<MetricKey>('playerLoad');
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
-  const [viewMode, setViewMode] = useState<ViewMode>('alltime');
+  const [viewMode, setViewMode] = useState<ViewMode>('day');
   const [sessionOptions, setSessionOptions] = useState<{ id: string; name: string; date: string }[]>([]);
   const [weekOptions, setWeekOptions] = useState<{ ws: string; label: string }[]>([]);
   const [selectedDay, setSelectedDay] = useState('');
@@ -195,11 +206,23 @@ export default function ByPosition() {
     }
   });
 
+  // Primary metric always first column, rest follow
+  const displayCols = [
+    TABLE_COLS.find(c => c.key === primaryMetric)!,
+    ...TABLE_COLS.filter(c => c.key !== primaryMetric),
+  ].filter(Boolean);
+
   const thStyle: React.CSSProperties = {
     padding: '9px 12px', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 10,
     letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap',
     textAlign: 'right', borderBottom: '1px solid var(--border)', background: 'var(--surface)',
-    cursor: 'pointer', userSelect: 'none',
+    cursor: 'pointer', userSelect: 'none', position: 'sticky', top: 0, zIndex: 3,
+  };
+
+  const selectStyle: React.CSSProperties = {
+    background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
+    padding: '8px 12px', color: 'var(--text)', fontFamily: 'var(--font-display)',
+    fontWeight: 700, fontSize: 13, width: '100%',
   };
 
   if (loading) return (
@@ -217,176 +240,248 @@ export default function ByPosition() {
       <Navigation onAvaOpen={() => setAvaOpen(true)} onRefresh={loadData} isRefreshing={isRefreshing} />
       <Ava isOpen={avaOpen} onClose={() => setAvaOpen(false)} />
 
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 16px' }}>
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: isMobile ? '16px 12px' : '20px 16px', boxSizing: 'border-box', width: '100%' }}>
 
         {/* Controls */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
-            <div>
-              <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 26, letterSpacing: '0.04em', textTransform: 'uppercase' }}>By Position</h1>
-              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-                {viewMode === 'alltime' ? 'All-time season maxes' : viewMode === 'day' ? 'Single session' : 'Date range maxes'} · {athletes.length} athletes
-              </p>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase' }}>Primary Metric</div>
-              <select value={primaryMetric} onChange={e => { setPrimaryMetric(e.target.value as MetricKey); setSortCol(e.target.value as MetricKey); }}
-                style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 14px', color: 'var(--text)', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13 }}>
-                {TABLE_COLS.map(c => <option key={c.key} value={c.key}>{METRIC_CONFIG[c.key].label}</option>)}
-              </select>
-            </div>
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: isMobile ? '12px 14px' : '14px 18px', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: isMobile ? 20 : 26, letterSpacing: '0.04em', textTransform: 'uppercase', lineHeight: 1 }}>By Position</h1>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{athletes.length} athletes</div>
           </div>
 
-          {/* Mode toggle + date selectors */}
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-            {/* Mode toggle */}
-            <div style={{ display: 'flex', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-              {([['alltime', 'All Time'], ['range', 'Date Range'], ['day', 'Single Day']] as [ViewMode, string][]).map(([m, label]) => (
-                <button key={m} onClick={() => setViewMode(m)} style={{ padding: '7px 14px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', background: viewMode === m ? 'var(--accent)' : 'transparent', color: viewMode === m ? 'white' : 'var(--muted)', transition: 'all 0.15s' }}>
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* Date Range selectors */}
-            {viewMode === 'range' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>From</span>
-                  <select value={fromWeek} onChange={e => setFromWeek(e.target.value)}
-                    style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', color: 'var(--text)', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12 }}>
-                    {weekOptions.map(w => <option key={w.ws} value={w.ws}>{w.label}</option>)}
-                  </select>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>To</span>
-                  <select value={toWeek} onChange={e => setToWeek(e.target.value)}
-                    style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', color: 'var(--text)', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12 }}>
-                    {weekOptions.map(w => <option key={w.ws} value={w.ws}>{w.label}</option>)}
-                  </select>
+          {isMobile ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Primary Metric</div>
+                <select value={primaryMetric} onChange={e => { setPrimaryMetric(e.target.value as MetricKey); setSortCol(e.target.value as MetricKey); }} style={selectStyle}>
+                  {TABLE_COLS.map(c => <option key={c.key} value={c.key}>{METRIC_CONFIG[c.key].label}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>View</div>
+                <div style={{ display: 'flex', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                  {([['alltime', 'All Time'], ['range', 'Range'], ['day', 'Single Day']] as [ViewMode, string][]).map(([m, label]) => (
+                    <button key={m} onClick={() => setViewMode(m)} style={{ flex: 1, padding: '8px 4px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', background: viewMode === m ? 'var(--accent)' : 'transparent', color: viewMode === m ? 'white' : 'var(--muted)' }}>
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
-            )}
-
-            {/* Single Day selector */}
-            {viewMode === 'day' && (
-              <select value={selectedDay} onChange={e => setSelectedDay(e.target.value)}
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 12px', color: 'var(--text)', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12 }}>
-                {sessionOptions.map(s => <option key={s.id} value={s.id}>{s.name} · {s.date}</option>)}
-              </select>
-            )}
-          </div>
+              {viewMode === 'day' && (
+                <div>
+                  <div style={{ fontSize: 11, fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent)', marginBottom: 4 }}>Select a Session ↓</div>
+                  <select value={selectedDay} onChange={e => setSelectedDay(e.target.value)} style={{ ...selectStyle, border: '1px solid var(--accent)' }}>
+                    {sessionOptions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              )}
+              {viewMode === 'range' && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>From</div>
+                    <select value={fromWeek} onChange={e => setFromWeek(e.target.value)} style={selectStyle}>{weekOptions.map(w => <option key={w.ws} value={w.ws}>{w.label}</option>)}</select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>To</div>
+                    <select value={toWeek} onChange={e => setToWeek(e.target.value)} style={selectStyle}>{weekOptions.map(w => <option key={w.ws} value={w.ws}>{w.label}</option>)}</select>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
+              <div style={{ minWidth: 200 }}>
+                <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Primary Metric</div>
+                <select value={primaryMetric} onChange={e => { setPrimaryMetric(e.target.value as MetricKey); setSortCol(e.target.value as MetricKey); }} style={selectStyle}>
+                  {TABLE_COLS.map(c => <option key={c.key} value={c.key}>{METRIC_CONFIG[c.key].label}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>View</div>
+                <div style={{ display: 'flex', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                  {([['alltime', 'All Time'], ['range', 'Date Range'], ['day', 'Single Day']] as [ViewMode, string][]).map(([m, label]) => (
+                    <button key={m} onClick={() => setViewMode(m)} style={{ padding: '7px 14px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 11, textTransform: 'uppercase', background: viewMode === m ? 'var(--accent)' : 'transparent', color: viewMode === m ? 'white' : 'var(--muted)' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {viewMode === 'day' && (
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>Session</div>
+                  <select value={selectedDay} onChange={e => setSelectedDay(e.target.value)} style={selectStyle}>
+                    {sessionOptions.map(s => <option key={s.id} value={s.id}>{s.name} · {s.date}</option>)}
+                  </select>
+                </div>
+              )}
+              {viewMode === 'range' && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>From</div>
+                    <select value={fromWeek} onChange={e => setFromWeek(e.target.value)} style={{ ...selectStyle, width: 'auto' }}>{weekOptions.map(w => <option key={w.ws} value={w.ws}>{w.label}</option>)}</select>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>To</div>
+                    <select value={toWeek} onChange={e => setToWeek(e.target.value)} style={{ ...selectStyle, width: 'auto' }}>{weekOptions.map(w => <option key={w.ws} value={w.ws}>{w.label}</option>)}</select>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Position group cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10, marginBottom: 20 }}>
+        {/* Position group summary cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10, marginBottom: 14 }}>
           {groupCardData.map(gc => {
             const cfg = METRIC_CONFIG[primaryMetric];
             return (
-              <div key={gc.group} style={{ background: 'var(--card)', border: `1px solid ${gc.color}33`, borderRadius: 12, padding: '14px 16px', borderLeft: `4px solid ${gc.color}` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 16, color: gc.color }}>{gc.group}</div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 700 }}>{gc.count}</div>
+              <div key={gc.group} style={{ background: 'var(--card)', border: `1px solid ${gc.color}33`, borderRadius: 12, padding: '12px 14px', borderLeft: `4px solid ${gc.color}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 14, color: gc.color }}>{gc.group}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--font-display)', fontWeight: 700 }}>{gc.count}</div>
                 </div>
-                <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>Group Max — {cfg.shortLabel}</div>
-                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 22, color: gc.color, lineHeight: 1 }}>
+                <div style={{ fontSize: 9, color: 'var(--muted)', marginBottom: 2 }}>Group Max</div>
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 20, color: gc.color, lineHeight: 1 }}>
                   {gc.groupMax > 0 ? gc.groupMax.toFixed(1) : '—'}
-                  <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 4, fontWeight: 600 }}>{cfg.unit}</span>
+                  <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 3, fontWeight: 600 }}>{cfg.unit}</span>
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* All-players table */}
-        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 13 }}>All Players by Position — Season Maxes</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>Tap player → Drill-Down</div>
+        {/* Mobile: approved row list per group */}
+        {isMobile ? (
+          <div style={{ minWidth: 0, width: '100%' }}>
+            {posGroupOrder.filter(g => grouped[g]?.length > 0).map(group => {
+              const gc = GROUP_CARDS.find(x => x.group === group);
+              const color = gc?.color ?? 'var(--muted)';
+              const members = grouped[group];
+              const primaryCfg = TABLE_COLS.find(c => c.key === primaryMetric)!;
+              const allVals = members.map(a => a.metrics[primaryMetric] ?? 0).filter(v => v > 0);
+              const leaderVal = allVals.length > 0 ? Math.max(...allVals) : 0;
+              return (
+                <div key={group} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden', marginBottom: 12 }}>
+                  <div style={{ padding: '10px 14px', background: `${color}18`, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 13, color }}>{group}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{members.length} · <span style={{ color, fontWeight: 700 }}>{leaderVal > 0 ? leaderVal.toFixed(primaryCfg.decimals) : '—'} {primaryCfg.unit}</span></div>
+                  </div>
+                  {members.map((a, i) => {
+                    const val = a.metrics[primaryMetric] ?? 0;
+                    const valColor = intensityColor(val, allVals);
+                    const pct = leaderVal > 0 && val > 0 ? Math.round((val / leaderVal) * 100) : 0;
+                    const behindPct = i > 0 && leaderVal > 0 && val > 0 ? Math.round(((leaderVal - val) / leaderVal) * 100) : 0;
+                    return (
+                      <div key={a.id} style={{ position: 'relative', padding: '10px 14px 10px 16px', borderBottom: i < members.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none', cursor: 'pointer' }}
+                        onClick={() => router.push(`/player?id=${a.id}`)}>
+                        <div style={{ position: 'absolute', left: 0, top: 6, bottom: 6, width: 3, background: color, borderRadius: '0 3px 3px 0', opacity: 0.6 }} />
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+                              <InjuryFlag athleteId={a.id} athleteName={a.name} />
+                              <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 13, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</span>
+                              <span style={{ fontSize: 10, color: 'var(--muted)', flexShrink: 0 }}>({a.position})</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+                              <span style={{ fontSize: 11, color: valColor, fontWeight: 700 }}>{i === 0 ? 'Leader' : `${behindPct}% behind`}</span>
+                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--muted)' }}>· {pct}% of top</span>
+                            </div>
+                            <div style={{ height: 3, background: 'var(--surface)', borderRadius: 2, overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${pct}%`, background: valColor, borderRadius: 2, transition: 'width 0.4s' }} />
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 22, color: valColor, letterSpacing: '-0.02em', lineHeight: 1 }}>
+                              {val > 0 ? val.toFixed(primaryCfg.decimals) : '—'}
+                            </div>
+                            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{primaryCfg.unit}</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr>
-                  <th style={{ ...thStyle, textAlign: 'left', width: 48, position: 'sticky', left: 0, background: 'var(--surface)', zIndex: 2 }}>Pos</th>
-                  <th style={{ ...thStyle, textAlign: 'left', position: 'sticky', left: 48, background: 'var(--surface)', zIndex: 2, minWidth: 160 }}>Player ↕</th>
-                  {TABLE_COLS.map(c => (
-                    <th key={c.key} onClick={() => handleSort(c.key)}
-                      style={{ ...thStyle, color: sortCol === c.key ? 'var(--accent)' : 'var(--muted)' }}>
-                      {c.label} {sortCol === c.key ? (sortDir === 'desc' ? '▼' : '▲') : '↕'}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {posGroupOrder.filter(g => grouped[g]?.length > 0).map(group => {
-                  const gc = GROUP_CARDS.find(x => x.group === group);
-                  const color = gc?.color ?? 'var(--muted)';
-                  const members = grouped[group];
-
-                  // Group max row
-                  const groupMaxRow: Partial<Record<MetricKey, number>> = {};
-                  TABLE_COLS.forEach(c => {
-                    const vals = members.map(a => a.metrics[c.key] ?? 0).filter(v => v > 0);
-                    groupMaxRow[c.key] = vals.length > 0 ? Math.max(...vals) : 0;
-                  });
-
-                  return (
-                    <>
-                      {/* Group max header row */}
-                      <tr key={`${group}-header`} style={{ background: `${color}12`, borderLeft: `3px solid ${color}` }}>
-                        <td style={{ padding: '8px 12px', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 11, color, borderBottom: '1px solid var(--border)', position: 'sticky', left: 0, background: `${color}12`, zIndex: 1 }}>
-                          {group}
-                        </td>
-                        <td style={{ padding: '8px 12px', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 11, color, borderBottom: '1px solid var(--border)', position: 'sticky', left: 48, background: `${color}12`, zIndex: 1 }}>
-                          {group} ({members.length})
-                        </td>
-                        {TABLE_COLS.map(c => {
-                          const val = groupMaxRow[c.key] ?? 0;
-                          return (
-                            <td key={c.key} style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 12, color, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
-                              {val > 0 ? val.toFixed(c.decimals) : '—'}
-                            </td>
-                          );
-                        })}
-                      </tr>
-
-                      {/* Athlete rows */}
-                      {members.map((a, i) => (
-                        <tr key={a.id}
-                          style={{ borderBottom: '1px solid var(--border)', borderLeft: `3px solid ${color}`, background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}
-                          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(26,107,255,0.05)')}
-                          onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)')}>
-                          <td style={{ padding: '8px 12px', position: 'sticky', left: 0, background: 'var(--card)', zIndex: 1 }}>
-                            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 11, color }}>{a.posGroup}</span>
-                          </td>
-                          <td style={{ padding: '8px 12px', position: 'sticky', left: 48, background: 'var(--card)', zIndex: 1, whiteSpace: 'nowrap' }}>
-                            <button onClick={() => router.push(`/player?id=${a.id}`)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', fontWeight: 600, fontSize: 12, padding: 0, textAlign: 'left', fontFamily: 'inherit' }}>
-                              {a.name} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>({a.position})</span>
-                            </button>
-                            <InjuryFlag athleteId={a.id} athleteName={a.name} />
-                          </td>
-                          {TABLE_COLS.map(c => {
-                            const val = a.metrics[c.key] ?? 0;
-                            const sessionId = a.maxSessionIds[c.key] ?? '';
-                            return (
-                              <td key={c.key}
-                                onClick={() => router.push(`/player?id=${a.id}${sessionId ? `&session=${sessionId}` : ''}`)}
-                                style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text)', fontWeight: sortCol === c.key ? 700 : 400, whiteSpace: 'nowrap', cursor: 'pointer' }}>
-                                {val > 0 ? val.toFixed(c.decimals) : '—'}
-                              </td>
-                            );
+        ) : (
+          /* Desktop: sticky table */
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 13 }}>All Players by Position</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Click player → Drill-Down</div>
+            </div>
+            <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '75vh' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 800 }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...thStyle, textAlign: 'left', width: 48, left: 0, zIndex: 5 }}>Pos</th>
+                    <th style={{ ...thStyle, textAlign: 'left', position: 'sticky', left: 48, zIndex: 5, minWidth: 160 }}>Player</th>
+                    {displayCols.map(c => (
+                      <th key={c.key} onClick={() => handleSort(c.key)} style={{ ...thStyle, color: sortCol === c.key ? 'var(--accent)' : 'var(--muted)' }}>
+                        {c.label} {sortCol === c.key ? (sortDir === 'desc' ? '▼' : '▲') : '↕'}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {posGroupOrder.filter(g => grouped[g]?.length > 0).map(group => {
+                    const gc = GROUP_CARDS.find(x => x.group === group);
+                    const color = gc?.color ?? 'var(--muted)';
+                    const members = grouped[group];
+                    const groupMaxRow: Partial<Record<MetricKey, number>> = {};
+                    displayCols.forEach(c => {
+                      const vals = members.map(a => a.metrics[c.key] ?? 0).filter(v => v > 0);
+                      groupMaxRow[c.key] = vals.length > 0 ? Math.max(...vals) : 0;
+                    });
+                    return (
+                      <>
+                        <tr key={`${group}-header`} style={{ background: `${color}12`, borderLeft: `3px solid ${color}` }}>
+                          <td style={{ padding: '8px 12px', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 11, color, borderBottom: '1px solid var(--border)', position: 'sticky', left: 0, background: `${color}18`, zIndex: 2 }}>{group}</td>
+                          <td style={{ padding: '8px 12px', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 11, color, borderBottom: '1px solid var(--border)', position: 'sticky', left: 48, background: `${color}18`, zIndex: 2 }}>{group} ({members.length})</td>
+                          {displayCols.map(c => {
+                            const val = groupMaxRow[c.key] ?? 0;
+                            return <td key={c.key} style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 12, color, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{val > 0 ? val.toFixed(c.decimals) : '—'}</td>;
                           })}
                         </tr>
-                      ))}
-                    </>
-                  );
-                })}
-              </tbody>
-            </table>
+                        {members.map((a, i) => (
+                          <tr key={a.id}
+                            style={{ borderBottom: '1px solid var(--border)', borderLeft: `3px solid ${color}`, background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(26,107,255,0.05)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)')}>
+                            <td style={{ padding: '8px 12px', position: 'sticky', left: 0, background: '#0f1923', zIndex: 1 }}>
+                              <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 11, color }}>{a.posGroup}</span>
+                            </td>
+                            <td style={{ padding: '8px 12px', position: 'sticky', left: 48, background: '#0f1923', zIndex: 1, whiteSpace: 'nowrap', boxShadow: '2px 0 4px rgba(0,0,0,0.3)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <button onClick={() => router.push(`/player?id=${a.id}`)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text)', fontWeight: 600, fontSize: 12, padding: 0, textAlign: 'left', fontFamily: 'inherit' }}>
+                                  {a.name} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>({a.position})</span>
+                                </button>
+                                <InjuryFlag athleteId={a.id} athleteName={a.name} />
+                              </div>
+                            </td>
+                            {displayCols.map(c => {
+                              const val = a.metrics[c.key] ?? 0;
+                              const cellColor = intensityColor(val, colVals[c.key] ?? []);
+                              const sessionId = a.maxSessionIds[c.key] ?? '';
+                              return (
+                                <td key={c.key}
+                                  onClick={() => router.push(`/player?id=${a.id}${sessionId ? `&session=${sessionId}` : ''}`)}
+                                  style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12, color: val > 0 ? cellColor : 'var(--dim)', fontWeight: sortCol === c.key ? 700 : 400, whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                                  {val > 0 ? val.toFixed(c.decimals) : '—'}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
